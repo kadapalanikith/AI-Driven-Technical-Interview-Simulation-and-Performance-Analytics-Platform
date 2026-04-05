@@ -68,15 +68,80 @@ function InterviewSetupPage() {
   const [loading, setLoading] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
 
-  // TODO: Add useEffect to load saved resume on mount using getResume
+  useEffect(() => {
+    const loadResume = async () => {
+      try {
+        const data = await getResume();
+        if (data) {
+          setResumeText(data.text);
+          setResumeFileName(data.fileName);
+        }
+      } catch (error) {
+        // No resume found - that's okay
+      }
+    };
+    loadResume();
+  }, []);
 
-  // TODO: Implement handleResumeUpload - validate PDF, upload file, update state
+  const handleResumeUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  // TODO: Implement handleStartInterview - validate inputs, call startInterview, navigate
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file.');
+      return;
+    }
 
-  // TODO: Implement handleNext - validate current step and advance
+    setUploadingResume(true);
+    try {
+      const data = await uploadResume(file);
+      setResumeText(data.text);
+      setResumeFileName(data.fileName);
+      toast.success('Resume uploaded successfully!');
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to upload resume';
+      toast.error(message);
+    } finally {
+      setUploadingResume(false);
+    }
+  };
 
-  // TODO: Implement handleBack - go to previous step
+  const handleStartInterview = async () => {
+    if (!selectedRole) {
+      toast.error('Please select a role.');
+      return;
+    }
+    if (!resumeText) {
+      toast.error('Please upload your resume.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const difficultyConfig = DIFFICULTY_LEVELS.find((d) => d.id === selectedDifficulty);
+      const totalQuestions = difficultyConfig ? difficultyConfig.questions : 5;
+      const data = await startInterview(selectedRole, resumeText, totalQuestions);
+      toast.success('Interview started!');
+      navigate(`/interview/${data.interviewId}`, { state: { audio: data.audio } });
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to start interview';
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (step === 1 && !selectedRole) {
+      toast.error('Please select a role.');
+      return;
+    }
+    setStep((prev) => Math.min(prev + 1, 3));
+  };
+
+  const handleBack = () => {
+    setStep((prev) => Math.max(prev - 1, 1));
+  };
 
   if (loading) {
     return (
@@ -85,12 +150,10 @@ function InterviewSetupPage() {
           <div className="spinner-border setup-preparing-spinner" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <h2 className="setup-preparing-heading">
-            Preparing Your Interview...
-          </h2>
+          <h2 className="setup-preparing-heading">Preparing Your Interview...</h2>
           <p className="setup-preparing-text">
-            AI is analyzing your resume and generating personalized questions for
-            the <strong>{selectedRole}</strong> role.
+            AI is analyzing your resume and generating personalized questions for the{' '}
+            <strong>{selectedRole}</strong> role.
           </p>
           <div className="setup-preparing-steps">
             <div className="setup-prep-step">
@@ -99,20 +162,14 @@ function InterviewSetupPage() {
             </div>
             <div className="setup-prep-step">
               <BsCheckCircleFill className="setup-prep-step-icon-active" />
-              <span className="setup-prep-step-text">
-                Generating questions
-              </span>
+              <span className="setup-prep-step-text">Generating questions</span>
             </div>
             <div className="setup-prep-step">
               <BsCheckCircleFill className="setup-prep-step-icon-pending" />
-              <span className="setup-prep-step-text">
-                Setting up voice interviewer
-              </span>
+              <span className="setup-prep-step-text">Setting up voice interviewer</span>
             </div>
           </div>
-          <p className="setup-preparing-hint">
-            This may take 10-15 seconds...
-          </p>
+          <p className="setup-preparing-hint">This may take 10-15 seconds...</p>
         </div>
       </div>
     );
@@ -122,19 +179,13 @@ function InterviewSetupPage() {
     <div className="setup-page">
       <div className="setup-container">
         <div className="setup-step-indicator">
-          <span
-            className={`setup-step-badge ${step >= 1 ? 'setup-step-active' : ''}`}
-          >
+          <span className={`setup-step-badge ${step >= 1 ? 'setup-step-active' : ''}`}>
             1. Role
           </span>
-          <span
-            className={`setup-step-badge ${step >= 2 ? 'setup-step-active' : ''}`}
-          >
+          <span className={`setup-step-badge ${step >= 2 ? 'setup-step-active' : ''}`}>
             2. Difficulty
           </span>
-          <span
-            className={`setup-step-badge ${step >= 3 ? 'setup-step-active' : ''}`}
-          >
+          <span className={`setup-step-badge ${step >= 3 ? 'setup-step-active' : ''}`}>
             3. Resume
           </span>
         </div>
@@ -192,21 +243,14 @@ function InterviewSetupPage() {
                   </div>
                   <label className="setup-change-resume-btn">
                     Change
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleResumeUpload}
-                      hidden
-                    />
+                    <input type="file" accept=".pdf" onChange={handleResumeUpload} hidden />
                   </label>
                 </div>
               ) : (
                 <label className="setup-upload-zone">
                   <BsFileEarmarkArrowUp className="setup-upload-icon" />
                   <p className="setup-upload-text">
-                    {uploadingResume
-                      ? 'Uploading...'
-                      : 'Click to upload PDF resume'}
+                    {uploadingResume ? 'Uploading...' : 'Click to upload PDF resume'}
                   </p>
                   <input
                     type="file"
@@ -245,94 +289,5 @@ function InterviewSetupPage() {
     </div>
   );
 }
-
-useEffect(() => {
-  const loadResume = async () => {
-    try {
-      const data = await getResume();
-      if (data) {
-        setResumeText(data.text);
-        setResumeFileName(data.fileName);
-      }
-    } catch (error) {
-      // No resume found - that's okay
-    }
-  };
-
-  loadResume();
-}, []);
-
-const handleResumeUpload = async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  if (file.type !== 'application/pdf') {
-    toast.error('Please upload a PDF file.');
-    return;
-  }
-
-  setUploadingResume(true);
-
-  try {
-    const data = await uploadResume(file);
-    setResumeText(data.text);
-    setResumeFileName(data.fileName);
-    toast.success('Resume uploaded successfully!');
-  } catch (error) {
-    const message =
-      error.response?.data?.message || 'Failed to upload resume';
-    toast.error(message);
-  } finally {
-    setUploadingResume(false);
-  }
-};
-
-const handleStartInterview = async () => {
-  if (!selectedRole) {
-    toast.error('Please select a role.');
-    return;
-  }
-  if (!resumeText) {
-    toast.error('Please upload your resume.');
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const difficultyConfig = DIFFICULTY_LEVELS.find(
-      (d) => d.id === selectedDifficulty
-    );
-    const totalQuestions = difficultyConfig ? difficultyConfig.questions : 5;
-    const data = await startInterview(
-      selectedRole,
-      resumeText,
-      totalQuestions
-    );
-    toast.success('Interview started!');
-    navigate(`/interview/${data.interviewId}`, {
-      state: { audio: data.audio },
-    });
-  } catch (error) {
-    const message =
-      error.response?.data?.message || 'Failed to start interview';
-    toast.error(message);
-  } finally {
-    setLoading(false);
-  }
-};
-
-const handleNext = () => {
-  if (step === 1 && !selectedRole) {
-    toast.error('Please select a role.');
-    return;
-  }
-  setStep((prev) => Math.min(prev + 1, 3));
-};
-
-const handleBack = () => {
-  setStep((prev) => Math.max(prev - 1, 1));
-};
-
 
 export default InterviewSetupPage;
