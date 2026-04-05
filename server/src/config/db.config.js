@@ -21,7 +21,7 @@ const connectDB = async () => {
     // Mongoose 9.x handles connection options automatically
     const conn = await mongoose.connect(mongoURI);
 
-    console.error(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     console.error(`MongoDB Connection Error: ${error.message}`);
     process.exit(1); // Stop the server if DB connection fails

@@ -16,7 +16,7 @@ export const transcribeAudio = async (audioBuffer, originalName) => {
 
     const transcript = await client.transcripts.transcribe({
       audio: tempPath,
-      speech_models: ['universal-2'],
+      speech_model: 'universal',
     });
 
     if (transcript.status === 'error') {

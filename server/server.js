@@ -28,9 +28,9 @@ const startServer = async () => {
 
     // Step 2: Start listening for HTTP requests
     app.listen(PORT, () => {
-      console.error(`\n Server is running on port ${PORT}`);
-      console.error(` Environment: ${process.env.NODE_ENV || "development"}`);
-      console.error(` URL: http://localhost:${PORT}\n`);
+      console.log(`\n Server is running on port ${PORT}`);
+      console.log(` Environment: ${process.env.NODE_ENV || "development"}`);
+      console.log(` URL: http://localhost:${PORT}\n`);
     });
   } catch (error) {
     // If anything fails, log the error and exit
