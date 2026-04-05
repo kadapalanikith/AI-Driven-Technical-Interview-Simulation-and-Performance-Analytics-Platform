@@ -1,4 +1,4 @@
-# 🤖 AI-Driven Technical Interview Simulation and Performance Analytics Platform
+# 🤖 AI-Driven Technical Interview Simulation & Performance Analytics Platform
 
 > An intelligent full-stack platform that simulates real-world technical interviews using AI, evaluates candidate responses in real time, and delivers rich performance analytics and personalized feedback.
 
@@ -59,22 +59,24 @@ Candidates can:
 | React 19 + Vite 6 | UI framework and build tool |
 | React Router v7 | Client-side routing |
 | Axios | HTTP client for API calls |
-| Monaco Editor | In-browser code editor |
+| Monaco Editor (`@monaco-editor/react`) | In-browser code editor for coding questions |
+| Web Speech API | Browser-native speech recognition (ConversationalMic) |
+| MediaRecorder API | Browser-native audio recording (VoiceRecorder) |
 | React Icons | Icon library |
 | React Hot Toast | Notification system |
 
 ### Backend
 | Technology | Purpose |
 |---|---|
-| Node.js + Express 5 | REST API server |
-| MongoDB + Mongoose | Database and ODM |
+| Node.js v18+ + Express 5 | REST API server |
+| MongoDB Atlas + Mongoose 9 | Cloud database and ODM |
 | JSON Web Tokens (JWT) | Stateless authentication |
 | bcryptjs | Password hashing |
-| Multer | File uploads (resumes) |
-| pdf.js-dist | PDF parsing in Node.js |
-| @google/genai | Google Gemini AI integration |
-| AssemblyAI SDK | Speech-to-text transcription |
-| Murf AI | Text-to-speech for interview questions |
+| Multer (memory storage) | File uploads — PDF resume & audio |
+| pdfjs-dist (legacy build) | PDF text extraction in Node.js |
+| @google/genai | Google Gemini 2.5 Flash AI integration |
+| AssemblyAI SDK | Speech-to-text transcription (`speech_model: universal`) |
+| Murf AI REST API | Text-to-speech — Natalie voice (MP3, 24kHz) |
 | dotenv | Environment variable management |
 
 ---
@@ -82,25 +84,33 @@ Candidates can:
 ## 🏗 Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        CLIENT (React/Vite)                   │
-│  LoginPage → HomePage → InterviewSetupPage                  │
-│           → InterviewPage → FeedbackPage → HistoryPage      │
-└──────────────────────┬──────────────────────────────────────┘
-                       │  REST API (Axios)
-┌──────────────────────▼──────────────────────────────────────┐
-│                    SERVER (Express 5)                        │
-│  /api/auth       → Auth Controller (register/login/me)      │
-│  /api/resume     → Resume Controller (upload + parse)       │
-│  /api/interview  → Interview Controller (start/answer/end)  │
-│  /api/history    → History Controller (list/detail)         │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-         ┌─────────────┼─────────────────┐
-         ▼             ▼                 ▼
-     MongoDB       Google Gemini     AssemblyAI
-  (Atlas Cloud)  (Question Gen &   (Speech-to-Text)
-                  AI Evaluation)
+┌──────────────────────────────────────────────────────────────────┐
+│                     CLIENT (React 19 + Vite 6)                    │
+│                                                                    │
+│  LoginPage ──► HomePage ──► InterviewSetupPage                   │
+│                                    │                              │
+│                              InterviewPage                        │
+│                         (VoiceRecorder / CodeEditor)              │
+│                                    │                              │
+│                         FeedbackPage ◄── HistoryPage             │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │  REST API over HTTP (Axios)
+                           │  Authorization: Bearer <JWT>
+┌──────────────────────────▼───────────────────────────────────────┐
+│                      SERVER (Express 5 / Node.js)                 │
+│                                                                    │
+│  POST /api/auth/register|login   GET /api/auth/me                │
+│  POST /api/resume/upload         GET  /api/resume                │
+│  POST /api/interview/start                                        │
+│  POST /api/interview/:id/answer|answer-audio|code|end            │
+│  GET  /api/interview/:id                                          │
+│  GET|DELETE /api/history[/:id]                                    │
+└──────┬─────────────────┬──────────────────┬────────────────┬─────┘
+       ▼                 ▼                  ▼                ▼
+  MongoDB Atlas    Google Gemini       AssemblyAI         Murf AI
+  (Users, Inter-   2.5 Flash           (Speech →          (Text →
+   views, Resume)  (Questions &         Text)              Speech
+                   Evaluation)                             MP3)
 ```
 
 ---
@@ -110,45 +120,62 @@ Candidates can:
 ```
 AI-Driven-Technical-Interview-Simulation/
 │
-├── client/                         # React + Vite frontend
-│   ├── public/
+├── client/                               # React + Vite frontend
 │   ├── src/
-│   │   ├── components/             # Reusable UI components (Navbar, ProtectedRoute, …)
-│   │   ├── constants/              # Static constants (roles, difficulty levels, …)
+│   │   ├── components/
+│   │   │   ├── AudioPlayer/              # Plays Murf TTS audio (base64 MP3)
+│   │   │   ├── CodeEditor/               # Monaco Editor wrapper
+│   │   │   ├── ConversationalMic/        # Web Speech API live transcription
+│   │   │   ├── InterviewCard/            # History card component
+│   │   │   ├── Navbar/                   # Top navigation bar
+│   │   │   ├── ProtectedRoute/           # JWT route guard
+│   │   │   ├── ScoreCard/               # Category score display
+│   │   │   └── VoiceRecorder/            # MediaRecorder audio recording
+│   │   ├── constants/
+│   │   │   ├── difficulty.js             # Difficulty levels + question counts
+│   │   │   ├── roles.js                  # Interview role definitions
+│   │   │   └── scoreColors.js            # Score-to-color mapping
 │   │   ├── context/
-│   │   │   └── AuthContext.jsx     # Global auth state (login, logout, user)
+│   │   │   └── AuthContext.jsx           # Global auth state (login/logout/user)
 │   │   ├── pages/
-│   │   │   ├── LoginPage/          # Register & Login page
-│   │   │   ├── HomePage/           # Dashboard / landing after login
-│   │   │   ├── InterviewSetupPage/ # Role, difficulty, resume upload
-│   │   │   ├── InterviewPage/      # Live interview session
-│   │   │   ├── FeedbackPage/       # Post-interview analytics
-│   │   │   └── HistoryPage/        # Past interview sessions
-│   │   ├── services/               # Axios API service modules
-│   │   ├── App.jsx                 # Route definitions
-│   │   ├── App.css                 # Global styles
-│   │   └── main.jsx                # React entry point
+│   │   │   ├── LoginPage/                # Hero + Sign In / Create Account
+│   │   │   ├── HomePage/                 # Dashboard with stats + recent history
+│   │   │   ├── InterviewSetupPage/       # 3-step wizard: role → difficulty → resume
+│   │   │   ├── InterviewPage/            # Live interview (voice/text/code)
+│   │   │   ├── FeedbackPage/             # Detailed AI feedback + category scores
+│   │   │   └── HistoryPage/              # Paginated interview history
+│   │   ├── services/
+│   │   │   ├── api.js                    # Axios instance with JWT interceptor
+│   │   │   ├── authService.js            # register, login, getMe, logout
+│   │   │   ├── historyService.js         # getHistory, deleteHistoryItem, clearHistory
+│   │   │   └── interviewService.js       # upload, start, answer, code, end, get
+│   │   ├── App.jsx                       # Route definitions
+│   │   ├── App.css                       # Global styles
+│   │   └── main.jsx                      # React entry point
 │   ├── index.html
 │   ├── vite.config.js
-│   ├── .env.example                # Client environment template
+│   ├── .env.example
 │   └── package.json
 │
-├── server/                         # Node.js + Express backend
+├── server/                               # Node.js + Express backend
 │   ├── src/
 │   │   ├── config/
-│   │   │   └── db.config.js        # MongoDB connection
-│   │   ├── constants/              # Shared constants (roles, prompts, …)
+│   │   │   ├── db.config.js              # MongoDB Atlas connection
+│   │   │   └── gemini.config.js          # Google GenAI client (Gemini 2.5 Flash)
+│   │   ├── constants/
+│   │   │   └── prompts.js                # All AI prompt templates
 │   │   ├── controllers/
 │   │   │   ├── auth.controller.js
 │   │   │   ├── resume.controller.js
-│   │   │   ├── interview.controller.js
+│   │   │   ├── interview.controller.js   # text/voice/code answer + TTS stream
 │   │   │   └── history.controller.js
 │   │   ├── middleware/
-│   │   │   ├── auth.middleware.js   # JWT verification
-│   │   │   └── error.middleware.js  # Global error handler
+│   │   │   ├── auth.middleware.js        # JWT verification → req.user
+│   │   │   ├── error.middleware.js       # 404 + global error handler
+│   │   │   └── upload.middleware.js      # Multer: PDF (10MB) + audio (25MB)
 │   │   ├── models/
 │   │   │   ├── User.model.js
-│   │   │   ├── Interview.model.js
+│   │   │   ├── Interview.model.js        # questions, messages, codeSubmissions, feedback
 │   │   │   └── Resume.model.js
 │   │   ├── routes/
 │   │   │   ├── index.js
@@ -156,15 +183,23 @@ AI-Driven-Technical-Interview-Simulation/
 │   │   │   ├── resume.routes.js
 │   │   │   ├── interview.routes.js
 │   │   │   └── history.routes.js
-│   │   ├── services/               # AI integrations (Gemini, AssemblyAI, Murf)
-│   │   ├── utils/                  # Utility helpers
-│   │   └── app.js                  # Express app config (CORS, middleware, routes)
-│   ├── server.js                   # Entry point — connects DB and starts server
-│   ├── .env.example                # Server environment template
+│   │   ├── services/
+│   │   │   ├── auth.service.js
+│   │   │   ├── gemini.service.js         # askGemini() wrapper
+│   │   │   ├── assemblyai.service.js     # transcribeAudio() via temp file
+│   │   │   ├── murf.service.js           # generateAudio() + streamAudio()
+│   │   │   ├── interview.service.js      # full interview state machine
+│   │   │   ├── resume.service.js         # PDF parse + upsert to DB
+│   │   │   └── history.service.js        # paginated history CRUD
+│   │   └── utils/
+│   │       ├── jwt.utils.js              # generateToken, verifyToken
+│   │       └── prompts.utils.js          # parseGeminiJSON()
+│   ├── server.js                         # Entry point
+│   ├── .env.example
 │   ├── .gitignore
 │   └── package.json
 │
-├── .gitignore                      # Root gitignore
+├── .gitignore
 └── README.md
 ```
 
